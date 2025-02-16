@@ -75,6 +75,7 @@
 
 
 <script setup lang="ts">
+import { ref, onMounted, nextTick, defineOptions, defineModel, computed, reactive } from "vue"
 import dayjs from "dayjs"
 import * as Calendar from "./calendar"
 import { searchUpHTMLElement } from "./calendar"
@@ -245,48 +246,62 @@ function onScrollMonthView()
 
     if (full_scrolled_to)
     {
-        if (calendar_view_type.value === 'month')
+        /**
+         * 在 chrome 浏览器上，要躲掉 scroll-snap 带来的驻留加速度（Firefox 就没这个问题）。
+         * 在滚动吸附后的短暂时间内，滚动容器在该滚动方向上还驻留有一个加速度。
+         * 如果在这段时间内手动设置了一个非到底滚动位置，则容器上仍会继续触发滚动事件。
+         */
+        function onFullScrolledTo()
         {
-            if (full_scrolled_to === 'prev')
-                view_month.value === 1 ? (view_month.value = 12, view_year.value--) : view_month.value--
-            else
-                view_month.value === 12 ? (view_month.value = 1, view_year.value++) : view_month.value++
-
-            const days_in_month = dayjs([view_year.value, view_month.value - 1]).daysInMonth()
-            const selected_date = dayjs(model.value)
-            const view_day = Math.min(selected_date.date(), days_in_month)
-            model.value = dayjs([view_year.value, view_month.value - 1, view_day]).format('YYYY-MM-DD')
-        }
-        else
-        {
-            const selected_date = dayjs(model.value)
-
-            if (full_scrolled_to === 'prev')
+            if (calendar_view_type.value === 'month')
             {
-                // 设置当前选择日期为上周的同周几所在日，并设置当前面板年月 //
-                const { years: year, months: month, date: date } = selected_date.subtract(1, 'week').toObject()
+                if (full_scrolled_to === 'prev')
+                    view_month.value === 1 ? (view_month.value = 12, view_year.value--) : view_month.value--
+                else
+                    view_month.value === 12 ? (view_month.value = 1, view_year.value++) : view_month.value++
 
-                view_year.value = year
-                view_month.value = month + 1
-                model.value = dayjs([year, month, date]).format('YYYY-MM-DD')
+                const days_in_month = dayjs([view_year.value, view_month.value - 1]).daysInMonth()
+                const selected_date = dayjs(model.value)
+                const view_day = Math.min(selected_date.date(), days_in_month)
+                model.value = dayjs([view_year.value, view_month.value - 1, view_day]).format('YYYY-MM-DD')
             }
             else
             {
-                // 设置当前选择日期为下周的同周几所在日，并设置当前面板年月 //
-                const { years: year, months: month, date: date } = selected_date.add(1, 'week').toObject()
-
-                view_year.value = year
-                view_month.value = month + 1
-                model.value = dayjs([year, month, date]).format('YYYY-MM-DD')
+                const selected_date = dayjs(model.value)
+    
+                if (full_scrolled_to === 'prev')
+                {
+                    // 设置当前选择日期为上周的同周几所在日，并设置当前面板年月 //
+                    const { years: year, months: month, date: date } = selected_date.subtract(1, 'week').toObject()
+    
+                    view_year.value = year
+                    view_month.value = month + 1
+                    model.value = dayjs([year, month, date]).format('YYYY-MM-DD')
+                }
+                else
+                {
+                    // 设置当前选择日期为下周的同周几所在日，并设置当前面板年月 //
+                    const { years: year, months: month, date: date } = selected_date.add(1, 'week').toObject()
+    
+                    view_year.value = year
+                    view_month.value = month + 1
+                    model.value = dayjs([year, month, date]).format('YYYY-MM-DD')
+                }
+    
+                // 等待新的 month_view 被计算完成 //
+                nextTick(() => {
+                    onScrollCalendar() // 触发面板偏移计算并重设偏移
+                })
             }
-
-            // 等待新的 month_view 被计算完成 //
-            nextTick(() => {
-                onScrollCalendar() // 触发面板偏移计算并重设偏移
-            })
+    
+            ref_month_view.value?.scrollTo({ left: window.innerWidth })
         }
 
-        ref_month_view.value?.scrollTo({ left: window.innerWidth })
+        /**
+         * @todo 判断 UA，在 Firefox 上不需要这个补丁。
+         * 不加这个等待的话，可以丝滑滚动；加了的话，在每一个滚动结束后会有一个微小的死停顿。
+         */
+        setTimeout(onFullScrolledTo, 50)
     }
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "vivid-calendar",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "type": "module",
   "main": "./dist/vivid-calendar.umd.js",
   "module": "./dist/vivid-calendar.es.js",
